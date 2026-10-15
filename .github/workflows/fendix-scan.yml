@@ -74,7 +74,7 @@ permissions:
 
 jobs:
   fendix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       FENDIX_IMAGE: docker.io/fendixapp/fendix@sha256:c0912dd6cd3ea20d81c688bdcda09d34ecabafbc38d5cfede2e8ecf3e9028033
     steps:
