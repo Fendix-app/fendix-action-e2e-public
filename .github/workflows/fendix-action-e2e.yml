@@ -19,7 +19,7 @@ jobs:
         uses: Fendix-app/Fendix@b9e1fad6e1d9531ac899ab44b01f413424f30a7a
         with:
           version: v3.6.2
-          code: .
+          code: ${{ github.workspace }}
           fail-on: HIGH
           upload-sarif: 'true'
       # Test harness only: record the Action's outputs and the report it wrote.
