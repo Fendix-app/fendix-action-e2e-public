@@ -1,0 +1,43 @@
+name: Fixed engine replica (pre-release)
+on:
+  pull_request:
+    branches: ['action-e2e/base']
+permissions:
+  contents: read
+jobs:
+  scan:
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [default, absolute, nodiff]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: "1.27.1"
+          cache: false
+      - name: Build the engine at the v3.6.2 fix commit
+        run: |
+          git clone --quiet --filter=blob:none https://github.com/Fendix-app/Fendix.git "$RUNNER_TEMP/engine"
+          git -C "$RUNNER_TEMP/engine" checkout --quiet 24760982a6b01d8f7f3b17bcbe16e4a76f0c62ff
+          (cd "$RUNNER_TEMP/engine/go" && go build -o "$RUNNER_TEMP/fendix" ./cmd/fendix)
+          "$RUNNER_TEMP/fendix" version
+      - name: Scan as the composite Action does on a pull request
+        env:
+          VARIANT: ${{ matrix.variant }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          set +e
+          git fetch --no-tags --depth=1 origin "$BASE" 2>/dev/null
+          case "$VARIANT" in
+            default)  args=(--code . --diff="origin/$BASE") ;;
+            absolute) args=(--code "$GITHUB_WORKSPACE" --diff="origin/$BASE") ;;
+            nodiff)   args=(--code .) ;;
+          esac
+          "$RUNNER_TEMP/fendix" scan "${args[@]}" --fail-on HIGH --format sarif --output fendix-results.sarif
+          code=$?
+          echo "E2E-FIXED variant=$VARIANT exit=$code results=$(python3 -c 'import json; print(len(json.load(open("fendix-results.sarif"))["runs"][0]["results"]))' 2>/dev/null)"
+          exit $code
