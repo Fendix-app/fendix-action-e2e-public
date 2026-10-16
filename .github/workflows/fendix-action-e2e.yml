@@ -20,6 +20,7 @@ jobs:
         with:
           version: v3.6.1
           code: .
+          diff: 'false'
           fail-on: HIGH
           upload-sarif: 'true'
       # Test harness only: record the Action's outputs and the report it wrote.
