@@ -1,0 +1,38 @@
+name: Fendix Action E2E
+on:
+  push:
+    branches: ['action-e2e/**']
+  pull_request:
+    branches: ['action-e2e/base']
+permissions:
+  contents: read
+  security-events: write    # SARIF upload
+  actions: read             # SARIF upload in a private or internal repository
+jobs:
+  fendix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0      # diff mode compares against the PR base ref
+      - id: fendix
+        uses: Fendix-app/Fendix@d5b67387f0549a8404b73d0a453e4ea868fb83c2
+        with:
+          version: v3.6.1
+          code: .
+          fail-on: HIGH
+          upload-sarif: 'true'
+      # Test harness only: record the Action's outputs and the report it wrote.
+      - name: E2E record outputs and report
+        if: always()
+        env:
+          OUTCOME: ${{ steps.fendix.outcome }}
+          REPORT: ${{ steps.fendix.outputs.report }}
+          EXIT_CODE: ${{ steps.fendix.outputs.exit-code }}
+        run: |
+          echo "E2E-OUTPUTS outcome=$OUTCOME exit-code=$EXIT_CODE report=$REPORT"
+          if [ -n "$REPORT" ] && [ -s "$REPORT" ]; then
+            echo "E2E-REPORT $(gzip -c "$REPORT" | base64 -w0)"
+          else
+            echo "E2E-REPORT none"
+          fi
