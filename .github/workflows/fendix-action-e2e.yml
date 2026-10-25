@@ -147,7 +147,7 @@ jobs:
           present|##[end-action id=fendix.upload;outcome=skipped;
           present|A setup step failed before the scan, so there is no result to enforce.
           absent|reported the probe's known match
-          absent|fendix scan --code
+          absent|fendix scan --code . --fail-on
           absent|Run github/codeql-action/upload-sarif@
           absent|✓ Fendix
           ann|failure :: Fendix required analyzer semgrep is unavailable :: Required analyzer semgrep cannot run. semgrep==1.182.1 has no wheel for this runner: it has glibc 2.31 on x86_64
