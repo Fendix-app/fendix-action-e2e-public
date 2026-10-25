@@ -18,7 +18,6 @@ jobs:
       - id: fendix
         uses: Fendix-app/Fendix@90adf6a5082be0661b4156566a3a99609ed4792d
         with:
-          version: v3.7.0
           code: .
           fail-on: HIGH
           upload-sarif: 'true'
