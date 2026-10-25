@@ -7,7 +7,8 @@ on:
 permissions:
   contents: read
   security-events: write    # SARIF upload
-  actions: read             # SARIF upload in a private or internal repository
+  actions: read             # SARIF upload in a private or internal repository; the log check reads the job log
+  checks: read              # Test harness only: the log check reads the job's annotations
 jobs:
   fendix:
     runs-on: ubuntu-latest
@@ -17,11 +18,13 @@ jobs:
           fetch-depth: 0      # diff mode compares against the PR base ref
       - id: fendix
         uses: Fendix-app/Fendix@90adf6a5082be0661b4156566a3a99609ed4792d
+        continue-on-error: true   # Test harness only: the assertions below decide the job
         with:
           version: v3.7.0
           code: .
           fail-on: HIGH
           upload-sarif: 'true'
+          extra-args: --fast
       # Test harness only: record the Action's outputs and the report it wrote.
       - name: E2E record outputs and report
         if: always()
@@ -36,3 +39,90 @@ jobs:
           else
             echo "E2E-REPORT none"
           fi
+      # Test harness only: --fast must not cancel the default Semgrep requirement.
+      - name: E2E assert outcome and outputs
+        if: always()
+        env:
+          OUTCOME: ${{ steps.fendix.outcome }}
+          REPORT: ${{ steps.fendix.outputs.report }}
+          EXIT_CODE: ${{ steps.fendix.outputs.exit-code }}
+        run: |
+          set -eu
+          fail() { echo "::error title=E2E assertion::$1"; exit 1; }
+          [ "$OUTCOME" = failure ] || fail "the Action step should fail, got '$OUTCOME'"
+          [ "$EXIT_CODE" = 2 ] || fail "the scan should exit 2, got exit-code '$EXIT_CODE'"
+          echo "E2E-ASSERT outcome=$OUTCOME exit-code=$EXIT_CODE report='$REPORT' written=$([ -s "$REPORT" ] && echo yes || echo no)"
+  logs:
+    needs: fendix
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # Test harness only: a composite Action's inner steps are invisible to the
+      # caller, so what the Action printed is checked in the finished job log
+      # and in the job's annotations (an annotation title is not in the log).
+      - name: E2E assert the Action log and annotations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -eu
+          id=$(gh api "repos/$REPO/actions/runs/$RUN_ID/attempts/$ATTEMPT/jobs" --jq '.jobs[] | select(.name == "fendix") | .id')
+          [ -n "$id" ] || { echo "::error title=E2E log check::no fendix job in this run"; exit 1; }
+          raw=""
+          for _ in $(seq 1 12); do
+            if raw=$(gh api --allow-escape-sequences "repos/$REPO/actions/jobs/$id/logs" 2>/dev/null) && [ -n "$raw" ]; then break; fi
+            raw=""; sleep 10
+          done
+          [ -n "$raw" ] || { echo "::error title=E2E log check::could not read the fendix job log"; exit 1; }
+          # Lines in ANSI 36;1 are the job's own step scripts echoed, never Action
+          # output. ESC arrives raw, or as the two characters ^[ when escaped.
+          esc=$(printf '\033')
+          log=$(printf '%s\n' "$raw" | grep -v -F -e "${esc}[36;1m" -e '^[[36;1m' | sed -e "s/${esc}\[[0-9;]*m//g" -e 's/\^\[\[[0-9;]*m//g' || true)
+          ann=""
+          for _ in $(seq 1 6); do
+            if ann=$(gh api "repos/$REPO/check-runs/$id/annotations?per_page=100" --jq '.[] | "\(.annotation_level) :: \(.title) :: \(.message)"' 2>/dev/null) && [ -n "$ann" ]; then break; fi
+            ann=""; sleep 10
+          done
+          echo "Annotations of job $id:"
+          printf '%s\n' "$ann" | sed 's/^/  /'
+          failed=0
+          while IFS= read -r rule; do
+            [ -n "$rule" ] || continue
+            kind=${rule%%|*}; rest=${rule#*|}; ok=0
+            case "$kind" in
+              present) [[ $log == *"$rest"* ]] && ok=1 ;;
+              absent) [[ $log == *"$rest"* ]] || ok=1 ;;
+              ann) [[ $ann == *"$rest"* ]] && ok=1 ;;
+              noann) [[ $ann == *"$rest"* ]] || ok=1 ;;
+              within)
+                start=${rest%%|*}; rest=${rest#*|}; end=${rest%%|*}; text=${rest#*|}
+                if [[ $log == *"$start"* ]]; then
+                  seg=${log#*"$start"}; seg=${seg%%"$end"*}
+                  [[ $seg == *"$text"* ]] && ok=1
+                fi ;;
+            esac
+            if [ "$ok" = 1 ]; then echo "E2E-RULE ok   $rule"; else echo "::error title=E2E log check::rule failed: $rule"; echo "E2E-RULE FAIL $rule"; failed=1; fi
+          done <<'RULES'
+          present|Verified Fendix v3.7.0 at /
+          present|Prepared Python source for v3.7.0 at commit 90adf6a5082be0661b4156566a3a99609ed4792d
+          present|Installing the locked dependencies of Fendix v3.7.0 (requirements.lock, --require-hashes)
+          present|Wheels only (--only-binary=:all:): no dependency is built from source
+          absent|Building wheel for
+          present|Required analyzers: semgrep
+          present|reported the probe's known match
+          present|--require-analyzers semgrep --fast
+          present|required analyzer semgrep was disabled by --fast
+          present|required: not delivered (semgrep)
+          present|The scan ran, but a required analyzer was not delivered
+          present|fendix exited 2, so the gate fails closed and the partial report was not uploaded.
+          present|##[end-action id=fendix.scan;outcome=success;
+          present|##[end-action id=fendix.upload;outcome=skipped;
+          absent|Run github/codeql-action/upload-sarif@
+          absent|✓ Fendix
+          absent|no finding reached BLOCK
+          ann|failure :: Fendix required analyzer semgrep was not delivered ::
+          noann|Fendix policy BLOCK
+          RULES
+          exit "$failed"
