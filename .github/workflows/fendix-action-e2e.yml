@@ -1,9 +1,9 @@
 name: Fendix Action E2E
 on:
   push:
-    branches: ['v370-e2e/**']
+    branches: ['v1-e2e/**']
   pull_request:
-    branches: ['v370-e2e/base']
+    branches: ['v1-e2e/base']
 permissions:
   contents: read
   security-events: write    # SARIF upload
@@ -42,7 +42,7 @@ jobs:
           ln -s /usr/local "$AGENT_TOOLSDIRECTORY/Python/$version/x64"
           touch "$AGENT_TOOLSDIRECTORY/Python/$version/x64.complete"
       - id: fendix
-        uses: Fendix-app/Fendix@90adf6a5082be0661b4156566a3a99609ed4792d
+        uses: Fendix-app/Fendix@v1
         continue-on-error: true   # Test harness only: the assertions below decide the job
         with:
           version: v3.7.0
