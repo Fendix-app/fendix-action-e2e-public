@@ -1,9 +1,9 @@
 name: Fendix Action E2E
 on:
   push:
-    branches: ['v370-e2e/**']
+    branches: ['v1-e2e/**']
   pull_request:
-    branches: ['v370-e2e/base']
+    branches: ['v1-e2e/base']
 permissions:
   contents: read
   security-events: write    # SARIF upload
@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0      # diff mode compares against the PR base ref
       - id: fendix
-        uses: Fendix-app/Fendix@90adf6a5082be0661b4156566a3a99609ed4792d
+        uses: Fendix-app/Fendix@v1
         with:
           version: v3.7.0
           code: .
