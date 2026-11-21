@@ -39,7 +39,7 @@ jobs:
             cp fixtures/clean.py target/app.py
           fi
       - id: fendix
-        uses: Fendix-app/Fendix@e3e3eadaaecb8670973f7acbc7b0cc4d3fca34c0 # v3.8.1
+        uses: Fendix-app/Fendix@v1 # v3.8.1 major-pointer verification
         continue-on-error: true
         with:
           version: v3.8.1
@@ -111,7 +111,7 @@ jobs:
           ln -s /usr/local "$AGENT_TOOLSDIRECTORY/Python/$version/x64"
           touch "$AGENT_TOOLSDIRECTORY/Python/$version/x64.complete"
       - id: fendix
-        uses: Fendix-app/Fendix@e3e3eadaaecb8670973f7acbc7b0cc4d3fca34c0 # v3.8.1
+        uses: Fendix-app/Fendix@v1 # v3.8.1 major-pointer verification
         continue-on-error: true   # Test harness only: the assertions below decide the job
         with:
           version: v3.8.1
